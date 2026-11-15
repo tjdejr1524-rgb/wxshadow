@@ -1,0 +1,41 @@
+name: Build wxshadow KPM
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu cmake make
+
+      - name: Clone KernelPatch
+        run: |
+          git clone --depth=1 https://github.com/bmax121/KernelPatch.git ${{ github.workspace }}/KernelPatch
+
+      - name: Configure and build wxshadow
+        run: |
+          mkdir -p build && cd build
+          cmake -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+                -DKP_DIR=${{ github.workspace }}/KernelPatch \
+                ..
+          make wxshadow.kpm
+          make wxshadow_client
+
+      - name: Upload KPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wxshadow-kpm
+          path: |
+            build/wxshadow.kpm
+            build/wxshadow_client
