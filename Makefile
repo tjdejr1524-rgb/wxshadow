@@ -1,34 +1,33 @@
-# wxshadow용 Makefile (KernelPatch 표준 KPM 빌드 방식)
 TARGET_COMPILE := aarch64-linux-gnu-
-KP_DIR ?= $(CURDIR)/../KernelPatch
+KP_DIR ?= $(CURDIR)/KernelPatch
 
 CC := $(TARGET_COMPILE)gcc
-LD := $(TARGET_COMPILE)ld
 
-# KPM 컴파일 필수 플래그: relocatable ELF 생성을 위한 -r
-# KernelPatch 헤더 경로 (DeepWiki 문서 기준)
-INCLUDE_DIRS := \
-    include \
-    patch/include \
-    linux/include \
-    linux/arch/arm64/include \
-    linux/tools/arch/arm64/include
+# KPM 커널 모듈 소스만 (stdio.h 필요 없는 것들)
+KPM_SRCS := wxshadow.c wxshadow_bp.c wxshadow_handlers.c wxshadow_pgtable.c wxshadow_scan.c
 
-CFLAGS := -r -fno-pic -mgeneral-regs-only -O2 -nostdinc \
-          -I$(KP_DIR)/kernel/include \
-          -I$(KP_DIR)/kernel/patch/include \
-          -I$(KP_DIR)/kernel/include/uapi
+# 사용자공간 소스 (별도 빌드)
+USER_SRCS := wxshadow_client.c bptest.c forktest.c gup_reader.c
 
-# 소스 파일 목록 (wxshadow 저장소 구조에 맞게 수정 필요)
-# 예: wxshadow_pgtable.c, wxshadow_handlers.c, wxshadow.c, wxshadow_bp.c 등
-SRCS := $(wildcard *.c)
+KPM_CFLAGS := -r -fno-pic -mgeneral-regs-only -O2 -nostdinc -nostdlib \
+              -I$(KP_DIR)/kernel/include \
+              -I$(KP_DIR)/kernel/patch/include \
+              -I$(KP_DIR)/kernel/include/uapi
 
-wxshadow.kpm: $(SRCS)
-	$(CC) $(CFLAGS) -o $@ $^
+USER_CFLAGS := -O2
 
-wxshadow_client: wxshadow_client.c
-	$(CC) -O2 -o $@ $<
+all: wxshadow.kpm
 
-.PHONY: clean
+wxshadow.kpm: $(KPM_SRCS)
+	$(CC) $(KPM_CFLAGS) -o $@ $^
+
+# 사용자공간은 별도 타겟 (필요할 때만)
+client: $(USER_SRCS)
+	$(CC) $(USER_CFLAGS) -o wxshadow_client wxshadow_client.c
+	$(CC) $(USER_CFLAGS) -o bptest bptest.c
+	$(CC) $(USER_CFLAGS) -o forktest forktest.c
+	$(CC) $(USER_CFLAGS) -o gup_reader gup_reader.c
+
+.PHONY: all client clean
 clean:
-	rm -f wxshadow.kpm wxshadow_client
+	rm -f wxshadow.kpm wxshadow_client bptest forktest gup_reader
